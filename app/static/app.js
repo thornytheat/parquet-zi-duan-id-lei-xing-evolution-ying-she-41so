@@ -162,4 +162,77 @@
     });
     sqlBlock.parentNode.insertBefore(copyBtn, sqlBlock.nextSibling);
   }
+
+  // ---- 6) 批次验收工作台：载入样例 + 执行验收 ----
+  var batchRunBtn = qs('#btn-batch-run');
+  if (batchRunBtn) {
+    var batchEl = qs('#batch-json');
+    var simEl = qs('#simulate-interrupt');
+    var bErr = qs('#batch-error');
+    var bOk = qs('#batch-ok');
+    var bSel = qs('#batch-sample-select');
+    var bLoad = qs('#btn-batch-load');
+    var bHint = qs('#batch-sample-hint');
+
+    function hideBatchBoxes() { if (bErr) bErr.hidden = true; if (bOk) bOk.hidden = true; }
+
+    if (bLoad && bSel && batchEl) {
+      bLoad.addEventListener('click', async function () {
+        hideBatchBoxes();
+        try {
+          var res = await fetch('/api/batch-samples/' + bSel.value);
+          var data = await res.json();
+          if (!res.ok) throw new Error(data.detail || ('HTTP ' + res.status));
+          batchEl.value = data.batch;
+          if (bHint) bHint.textContent = data.description + '（预期：' + data.expected + '）';
+          if (bOk) {
+            bOk.hidden = false;
+            bOk.textContent = '已载入批次样例 ' + data.key + '：' + data.label;
+          }
+        } catch (err) {
+          window.showError(bErr, err);
+        }
+      });
+    }
+
+    batchRunBtn.addEventListener('click', async function () {
+      hideBatchBoxes();
+      batchRunBtn.disabled = true;
+      batchRunBtn.textContent = '验收中…';
+      try {
+        var payload = { batch: batchEl ? batchEl.value : '' };
+        if (simEl && simEl.value !== '') {
+          payload.simulate_interrupt_after = Number(simEl.value);
+        }
+        var data = await window.postJSON('/api/acceptances', payload);
+        if (bOk) {
+          bOk.hidden = false;
+          bOk.textContent = '验收已执行：' + data.acceptance_id + '，正在跳转结果页…';
+        }
+        window.location.href = data.redirect;
+      } catch (err) {
+        window.showError(bErr, err);
+      } finally {
+        batchRunBtn.disabled = false;
+        batchRunBtn.textContent = '执行批次验收';
+      }
+    });
+  }
+
+  // ---- 7) 验收结果页：续跑（只跑未完成任务）/ 重试（新建验收，不混用）----
+  qsa('[data-acc-action]').forEach(function (btn) {
+    btn.addEventListener('click', async function () {
+      var accId = btn.getAttribute('data-acc-id');
+      var action = btn.getAttribute('data-acc-action');
+      btn.disabled = true;
+      try {
+        var data = await window.postJSON('/api/acceptances/' + accId + '/' + action, {});
+        window.location.href = data.redirect;
+      } catch (err) {
+        var box = qs('#acc-error');
+        if (box) window.showError(box, err);
+        btn.disabled = false;
+      }
+    });
+  });
 })();

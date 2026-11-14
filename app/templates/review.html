@@ -21,6 +21,62 @@
   </div>
 </div>
 
+<section class="panel">
+  <div class="panel-head">
+    <h2>批次验收记录</h2>
+    <div class="panel-actions">
+      <span class="tag">复核记录与下载清单指向同一次验收</span>
+      <a class="btn secondary small" href="/batch">批次验收工作台</a>
+      <a class="btn secondary small" href="/api/acceptances">验收记录 JSON</a>
+    </div>
+  </div>
+  {% if acceptances %}
+  <div class="table-wrap roomy">
+    <table class="dense">
+      <thead>
+        <tr><th style="width:236px">验收 / 时间 / 来源</th><th>批次</th><th style="width:110px">状态</th>
+          <th style="width:120px">任务 完/败/待</th><th style="width:150px">差异 阻/确/同步</th><th style="width:150px">输入指纹</th><th style="width:110px">操作</th></tr>
+      </thead>
+      <tbody>
+      {% for a in acceptances %}
+        <tr>
+          <td>
+            <a class="mono nowrap" href="/acceptance/{{ a.acceptance_id }}">{{ a.acceptance_id }}</a>
+            <div class="small muted">{{ a.created_at }} · {{ a.source }}</div>
+          </td>
+          <td class="small">{{ a.batch_label }}<div class="hint mono">{{ a.batch_id }}</div></td>
+          <td>
+            {% if a.status == 'passed' %}<span class="tag ok">整批通过</span>
+            {% elif a.status == 'rejected' %}<span class="tag err">整批未通过</span>
+            {% elif a.status == 'interrupted' %}<span class="tag warn">已中断</span>
+            {% else %}<span class="tag">执行中</span>{% endif %}
+          </td>
+          <td class="num nowrap">{{ a.summary.done }} / {{ a.summary.failed }} / {{ a.summary.pending }}</td>
+          <td class="num nowrap">{{ a.summary.diffs.block }} / {{ a.summary.diffs.confirm }} / {{ a.summary.diffs.warn }}</td>
+          <td class="small mono">{{ a.input_fingerprint[:15] }}…</td>
+          <td class="nowrap">
+            <a href="/acceptance/{{ a.acceptance_id }}">查看</a> · <a href="/api/acceptances/{{ a.acceptance_id }}/manifest">清单</a>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="panel-body tight">
+    <p class="small muted" style="margin:0">
+      验收记录落在 <code>data/acceptances/*.json</code>；「查看」打开复核记录页、「清单」下载验收清单，两者引用同一个 acceptance_id。
+      中断的验收可在结果页续跑（只执行未完成任务）；重试会新建验收，不混用旧结果。
+    </p>
+  </div>
+  {% else %}
+  <div class="empty">
+    <strong>还没有批次验收记录</strong>
+    到批次验收工作台跑一组批次样例（D 各表兼容但整批阻断 / E 整批通过），这里会出现可回看、可下载清单的验收记录。
+    <div style="margin-top:10px"><a class="btn small" href="/batch?sample=D">用样例 D 验收一次</a></div>
+  </div>
+  {% endif %}
+</section>
+
 <div class="split result">
   <section class="panel">
     <div class="toolbar">

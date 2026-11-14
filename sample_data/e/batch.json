@@ -1,0 +1,64 @@
+{
+  "batch_id": "growth-2026-11",
+  "label": "用户增长链路批次",
+  "tables": [
+    {
+      "name": "dwd_users",
+      "old": {
+        "table": "dwd_users",
+        "fields": [
+          {"id": 1, "name": "user_id", "type": "int64", "nullable": false, "default": null, "partition": false},
+          {"id": 2, "name": "channel", "type": "string", "nullable": true, "default": null, "partition": false},
+          {"id": 3, "name": "score", "type": "int32", "nullable": true, "default": null, "partition": false},
+          {"id": 4, "name": "dt", "type": "date", "nullable": false, "default": null, "partition": true}
+        ]
+      },
+      "new": {
+        "table": "dwd_users",
+        "fields": [
+          {"id": 1, "name": "user_id", "type": "int64", "nullable": false, "default": null, "partition": false},
+          {"id": 2, "name": "channel", "type": "string", "nullable": true, "default": null, "partition": false},
+          {"id": 3, "name": "score", "type": "int64", "nullable": true, "default": null, "partition": false},
+          {"id": 4, "name": "dt", "type": "date", "nullable": false, "default": null, "partition": true}
+        ]
+      }
+    },
+    {
+      "name": "dwd_signup",
+      "old": {
+        "table": "dwd_signup",
+        "fields": [
+          {"id": 1, "name": "signup_id", "type": "string", "nullable": false, "default": null, "partition": false},
+          {"id": 2, "name": "user_id", "type": "int64", "nullable": false, "default": null, "partition": false},
+          {"id": 3, "name": "source", "type": "string", "nullable": true, "default": null, "partition": false},
+          {"id": 4, "name": "dt", "type": "date", "nullable": false, "default": null, "partition": true}
+        ]
+      },
+      "new": {
+        "table": "dwd_signup",
+        "fields": [
+          {"id": 1, "name": "signup_id", "type": "string", "nullable": false, "default": null, "partition": false},
+          {"id": 2, "name": "user_id", "type": "int64", "nullable": false, "default": null, "partition": false},
+          {"id": 3, "name": "source", "type": "string", "nullable": true, "default": null, "partition": false},
+          {"id": 4, "name": "dt", "type": "date", "nullable": false, "default": null, "partition": true},
+          {"id": 5, "name": "campaign", "type": "string", "nullable": true, "default": null, "partition": false}
+        ]
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "task": "rpt_growth_daily",
+      "owner": "增长组",
+      "joins": [
+        {"left": "dwd_signup", "left_key": "user_id", "right": "dwd_users", "right_key": "user_id"}
+      ],
+      "projections": [
+        {"table": "dwd_signup", "column": "signup_id"},
+        {"table": "dwd_signup", "column": "source"},
+        {"table": "dwd_users", "column": "channel"},
+        {"table": "dwd_users", "column": "score"}
+      ]
+    }
+  ]
+}

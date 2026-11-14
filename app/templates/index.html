@@ -101,6 +101,10 @@
         <a class="btn secondary small" href="/review">历史对比与 SQL 下载</a>
         <a class="btn secondary small" href="/api/matrix">类型矩阵 JSON</a>
       </p>
+      <p class="small" style="margin:0 0 8px">
+        <a class="btn secondary small" href="/batch?sample=D">批次验收：样例 D（各表兼容但整批阻断）</a>
+        <a class="btn secondary small" href="/batch?sample=E">批次样例 E（整批通过）</a>
+      </p>
       <ul class="list small" style="margin:6px 0 0">
         <li>输入：两版 <code>schema JSON</code> + <code>consumers.json</code> 数据文件清单。</li>
         <li>输出：兼容级别、字段匹配、类型结论、迁移 SQL、broken_consumers。</li>

@@ -1,0 +1,130 @@
+{
+  "batch_id": "settle-2026-11",
+  "label": "11 月结算链路批次",
+  "tables": [
+    {
+      "name": "dwd_orders",
+      "old": {
+        "table": "dwd_orders",
+        "fields": [
+          {"id": 1, "name": "order_id", "type": "string", "nullable": false, "default": null, "partition": false},
+          {"id": 2, "name": "user_id", "type": "int64", "nullable": false, "default": null, "partition": false},
+          {"id": 3, "name": "amount", "type": "decimal(10,2)", "nullable": false, "default": null, "partition": false},
+          {"id": 4, "name": "status", "type": "string", "nullable": true, "default": null, "partition": false},
+          {"id": 5, "name": "created_at", "type": "timestamp", "nullable": true, "default": null, "partition": false},
+          {"id": 6, "name": "dt", "type": "date", "nullable": false, "default": null, "partition": true}
+        ]
+      },
+      "new": {
+        "table": "dwd_orders",
+        "fields": [
+          {"id": 1, "name": "order_no", "type": "string", "nullable": false, "default": null, "partition": false},
+          {"id": 2, "name": "user_id", "type": "int64", "nullable": false, "default": null, "partition": false},
+          {"id": 3, "name": "amount", "type": "decimal(18,2)", "nullable": false, "default": null, "partition": false},
+          {"id": 4, "name": "status", "type": "string", "nullable": true, "default": null, "partition": false},
+          {"id": 5, "name": "created_at", "type": "timestamp", "nullable": true, "default": null, "partition": false},
+          {"id": 6, "name": "dt", "type": "date", "nullable": false, "default": null, "partition": true}
+        ]
+      },
+      "consumers": {
+        "table": "dwd_orders",
+        "files": [
+          {"path": "s3://lake/dwd_orders/dt=2026-11-01/part-0000.parquet", "columns": ["order_id", "user_id", "amount", "dt"]},
+          {"path": "s3://lake/dwd_orders/dt=2026-11-02/part-0000.parquet", "columns": ["order_id", "amount", "status", "dt"]}
+        ]
+      }
+    },
+    {
+      "name": "dwd_payment",
+      "old": {
+        "table": "dwd_payment",
+        "fields": [
+          {"id": 1, "name": "payment_id", "type": "string", "nullable": false, "default": null, "partition": false},
+          {"id": 2, "name": "order_id", "type": "string", "nullable": false, "default": null, "partition": false},
+          {"id": 3, "name": "channel", "type": "string", "nullable": true, "default": null, "partition": false},
+          {"id": 4, "name": "amount", "type": "decimal(10,2)", "nullable": false, "default": null, "partition": false},
+          {"id": 5, "name": "remark", "type": "string", "nullable": true, "default": null, "partition": false},
+          {"id": 6, "name": "paid_at", "type": "timestamp", "nullable": true, "default": null, "partition": false},
+          {"id": 7, "name": "dt", "type": "date", "nullable": false, "default": null, "partition": true}
+        ]
+      },
+      "new": {
+        "table": "dwd_payment",
+        "fields": [
+          {"id": 1, "name": "payment_id", "type": "string", "nullable": false, "default": null, "partition": false},
+          {"id": 2, "name": "order_no", "type": "string", "nullable": false, "default": null, "partition": false},
+          {"id": 3, "name": "channel", "type": "string", "nullable": true, "default": null, "partition": false},
+          {"id": 4, "name": "amount", "type": "decimal(18,2)", "nullable": false, "default": null, "partition": false},
+          {"id": 6, "name": "paid_at", "type": "timestamp", "nullable": true, "default": null, "partition": false},
+          {"id": 7, "name": "dt", "type": "date", "nullable": false, "default": null, "partition": true},
+          {"id": 8, "name": "order_id", "type": "string", "nullable": true, "default": null, "partition": false}
+        ]
+      },
+      "consumers": {
+        "table": "dwd_payment",
+        "files": [
+          {"path": "s3://lake/dwd_payment/dt=2026-11-01/part-0000.parquet", "columns": ["payment_id", "order_id", "amount", "channel", "dt"]},
+          {"path": "s3://lake/dwd_payment/dt=2026-11-02/part-0000.parquet", "columns": ["payment_id", "remark", "paid_at", "dt"]}
+        ]
+      }
+    },
+    {
+      "name": "dim_user",
+      "old": {
+        "table": "dim_user",
+        "fields": [
+          {"id": 1, "name": "user_id", "type": "int64", "nullable": false, "default": null, "partition": false},
+          {"id": 2, "name": "user_name", "type": "string", "nullable": true, "default": null, "partition": false},
+          {"id": 3, "name": "segment", "type": "string", "nullable": true, "default": null, "partition": false},
+          {"id": 4, "name": "dt", "type": "date", "nullable": false, "default": null, "partition": true}
+        ]
+      },
+      "new": {
+        "table": "dim_user",
+        "fields": [
+          {"id": 1, "name": "user_id", "type": "int64", "nullable": false, "default": null, "partition": false},
+          {"id": 2, "name": "user_name", "type": "string", "nullable": true, "default": null, "partition": false},
+          {"id": 3, "name": "segment", "type": "string", "nullable": true, "default": null, "partition": false},
+          {"id": 4, "name": "dt", "type": "date", "nullable": false, "default": null, "partition": true}
+        ]
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "task": "rpt_settle_daily",
+      "owner": "结算组",
+      "joins": [
+        {"left": "dwd_orders", "left_key": "order_id", "right": "dwd_payment", "right_key": "order_id"}
+      ],
+      "projections": [
+        {"table": "dwd_orders", "column": "amount"},
+        {"table": "dwd_orders", "column": "status"},
+        {"table": "dwd_payment", "column": "channel"},
+        {"table": "dwd_payment", "column": "amount"}
+      ]
+    },
+    {
+      "task": "rpt_channel_remark",
+      "owner": "渠道组",
+      "joins": [],
+      "projections": [
+        {"table": "dwd_payment", "column": "payment_id"},
+        {"table": "dwd_payment", "column": "channel"},
+        {"table": "dwd_payment", "column": "remark"}
+      ]
+    },
+    {
+      "task": "rpt_user_profile",
+      "owner": "画像组",
+      "joins": [
+        {"left": "dwd_orders", "left_key": "user_id", "right": "dim_user", "right_key": "user_id"}
+      ],
+      "projections": [
+        {"table": "dim_user", "column": "user_name"},
+        {"table": "dim_user", "column": "segment"},
+        {"table": "dwd_orders", "column": "amount"}
+      ]
+    }
+  ]
+}

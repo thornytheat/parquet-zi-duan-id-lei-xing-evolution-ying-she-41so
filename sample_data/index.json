@@ -30,5 +30,21 @@
       "description": "发货表：删除 status、weight_gram 从 int64 收窄到 int32、分区字段 dt 从 date 改成 timestamp，carrier 的 field_id 从 6 变为 9。",
       "expected": "none / 3 条阻断 + broken_consumers"
     }
+  ],
+  "batch_samples": [
+    {
+      "key": "D",
+      "label": "D · 批次阻断（各表兼容但关联错列 + 数据丢失）",
+      "file": "d/batch.json",
+      "description": "结算链路三张表同时变更：orders 把 order_id 改名 order_no；payment 同步改名后又新增一个名为 order_id 的外部单号列（占用旧名），并删除 remark。三张表单独验收均为 full/backward 且可执行。",
+      "expected": "整批不可发布：关联错列 1 项（block）+ 投影列丢失 1 项（block）"
+    },
+    {
+      "key": "E",
+      "label": "E · 批次通过（关联键未动 + 兼容变更）",
+      "file": "e/batch.json",
+      "description": "用户增长链路两张表：users.score 由 int32 提升到 int64，signup 新增可空列 campaign；读取任务的关联键两侧均未变更，投影只有 1 处兼容的类型提升。",
+      "expected": "整批通过：无阻断 / 无待确认差异，1 处类型提升为提示级"
+    }
   ]
 }

@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+{% block title %}批次验收 {{ acc.acceptance_id }} · {{ app_name }}{% endblock %}
+{% block crumb %}批次验收结果{% endblock %}
+{% block meta %}<span class="dot {{ 'ok' if acc.status == 'passed' else ('err' if acc.status == 'rejected' else 'warn') }}"></span>{{ status_labels[acc.status] }} · 批次 {{ acc.batch_id }}{% endblock %}
+{% block actions %}
+<a class="btn secondary small" href="/batch">回批次工作台</a>
+<a class="btn small" href="/api/acceptances/{{ acc.acceptance_id }}/manifest">下载验收清单</a>
+{% endblock %}
+{% block status_left %}acceptance_id {{ acc.acceptance_id }} · 指纹 {{ acc.input_fingerprint[:19] }}… · 来源 {{ acc.source }} · 创建于 {{ acc.created_at }}{% endblock %}
+{% block status_right %}批次 <code>{{ acc.batch_id }}</code> · 任务 {{ summary.done }}/{{ summary.tasks }} 完成 · 差异 阻断 {{ summary.diffs.block }} 项{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1 class="page-title">批次验收 · <span class="mono">{{ acc.acceptance_id }}</span></h1>
+    <p class="page-sub">
+      批次 <strong>{{ acc.batch_label }}</strong>（<code>{{ acc.batch_id }}</code>）· 来源 {{ acc.source }} · 创建于 {{ acc.created_at }} ·
+      输入指纹 <code class="mono">{{ acc.input_fingerprint[:23] }}…</code> · 状态
+      {% if acc.status == 'passed' %}<span class="tag ok">整批通过</span>
+      {% elif acc.status == 'rejected' %}<span class="tag err">整批未通过</span>
+      {% elif acc.status == 'interrupted' %}<span class="tag warn">已中断（待续跑）</span>
+      {% else %}<span class="tag">执行中</span>{% endif %}
+    </p>
+  </div>
+  <div class="page-head-actions">
+    {% if summary.pending %}
+    <button type="button" class="small" data-acc-action="resume" data-acc-id="{{ acc.acceptance_id }}">续跑未完成任务（{{ summary.pending }}）</button>
+    {% endif %}
+    <button type="button" class="secondary small" data-acc-action="retry" data-acc-id="{{ acc.acceptance_id }}">重试（新建验收）</button>
+    <a class="btn secondary small" href="/api/acceptances/{{ acc.acceptance_id }}/manifest">下载清单</a>
+  </div>
+</div>
+
+<div id="acc-error" class="alert alert-error" role="alert" hidden></div>
+
+{% if acc.conclusion %}
+<div class="alert {{ 'alert-info' if acc.conclusion.publishable else 'alert-error' }}" role="alert" style="margin-bottom:12px">
+  <strong>{{ '整批可发布' if acc.conclusion.publishable else '整批不可发布' }}</strong>（结论时间 {{ acc.conclusion.decided_at }}）
+  <ul class="list small" style="margin:4px 0 0">
+    {% for r in acc.conclusion.reasons %}<li>{{ r }}</li>{% endfor %}
+  </ul>
+</div>
+{% else %}
+<div class="alert alert-info" role="alert" style="margin-bottom:12px">
+  <strong>验收未完成：半批结果不能标为通过。</strong>还有 {{ summary.pending }} 个任务待执行，点上方「续跑未完成任务」继续；续跑只执行待跑任务，已完成/已失败的结果不重跑、不混用。
+</div>
+{% endif %}
+
+{% if state.last_passed and state.last_passed.acceptance_id != acc.acceptance_id %}
+<div class="panel">
+  <div class="panel-body tight">
+    {% if state.last_passed_stale %}
+    <p class="small" style="margin:0">
+      <span class="tag err">旧结论已作废</span>
+      本批次最近一次通过是 <a class="mono" href="/acceptance/{{ state.last_passed.acceptance_id }}">{{ state.last_passed.acceptance_id }}</a>（{{ state.last_passed.created_at }}），
+      但其输入指纹与最新验收不一致（输入已变化），旧通过结论不再生效。
+    </p>
+    {% else %}
+    <p class="small" style="margin:0">
+      <span class="tag ok">旧版通过结果仍生效</span>
+      本次未通过/未完成不影响已生效结论：同批次最近一次通过
+      <a class="mono" href="/acceptance/{{ state.last_passed.acceptance_id }}">{{ state.last_passed.acceptance_id }}</a>（{{ state.last_passed.created_at }}，输入指纹一致）继续作为生效版本保留。
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<div class="kpi-strip">
+  <div class="kpi">
+    <div class="k-label">读取任务</div>
+    <div class="k-value">{{ summary.tasks }}</div>
+    <div class="k-note">完成 {{ summary.done }} · 待跑 {{ summary.pending }}</div>
+  </div>
+  <div class="kpi {% if summary.failed %}err{% else %}ok{% endif %}">
+    <div class="k-label">失败隔离</div>
+    <div class="k-value">{{ summary.failed }}</div>
+    <div class="k-note">失败任务不影响其他任务执行</div>
+  </div>
+  <div class="kpi {% if summary.diffs.block %}err{% else %}ok{% endif %}">
+    <div class="k-label">阻断差异</div>
+    <div class="k-value">{{ summary.diffs.block }}</div>
+    <div class="k-note">关联错列 / 数据丢失 / 类型阻断</div>
+  </div>
+  <div class="kpi {% if summary.diffs.confirm %}warn{% endif %}">
+    <div class="k-label">待确认</div>
+    <div class="k-value">{{ summary.diffs.confirm }}</div>
+    <div class="k-note">需人工确认后才能发布</div>
+  </div>
+  <div class="kpi {% if summary.diffs.warn %}warn{% endif %}">
+    <div class="k-label">需同步</div>
+    <div class="k-value">{{ summary.diffs.warn }}</div>
+    <div class="k-note">改名等下游同步项 · 提示 {{ summary.diffs.info }}</div>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>各表单独验收（对照）</h2>
+    <div class="panel-actions"><span class="tag">单看兼容 ≠ 合起来兼容</span></div>
+  </div>
+  <div class="table-wrap">
+    <table class="dense">
+      <thead>
+        <tr><th style="width:170px">表</th><th style="width:210px">单表兼容级别</th><th style="width:90px">可执行迁移</th>
+          <th style="width:150px">改名/新增/删除</th><th style="width:90px">类型变更</th><th style="width:90px">破损引用</th></tr>
+      </thead>
+      <tbody>
+        {% for t in acc.table_verdicts %}
+        <tr>
+          <td><code>{{ t.table }}</code></td>
+          <td>
+            {% if t.level == 'full' %}<span class="tag ok">full</span>
+            {% elif t.level == 'none' %}<span class="tag err">none</span>
+            {% else %}<span class="tag warn">{{ t.level }}</span>{% endif %}
+            <span class="small muted">{{ t.level_label }}</span>
+          </td>
+          <td>{{ '是' if t.can_execute else '否' }}</td>
+          <td class="num nowrap">{{ t.renamed }} / {{ t.added }} / {{ t.removed }}</td>
+          <td class="num">{{ t.type_changed }}</td>
+          <td class="num">{{ t.broken_consumers }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="panel-body tight">
+    <p class="small muted" style="margin:0">
+      上表是每张表单独对比的结论（与单表工作台口径一致）；下方才是把多张表合在一起后，按读取任务逐条对账的结果。
+    </p>
+  </div>
+</section>
+
+{% for entry in acc.tasks %}
+<section class="panel">
+  <div class="panel-head">
+    <h2>任务 <code>{{ entry.task }}</code>{% if entry.owner %}<span class="small muted"> · {{ entry.owner }}</span>{% endif %}</h2>
+    <div class="panel-actions">
+      {% if entry.status == 'done' %}
+      <span class="tag ok">已完成</span>
+      <span class="tag {{ 'err' if entry.result.verdict == 'blocked' else ('warn' if entry.result.verdict in ('warn', 'confirm') else 'ok') }}">{{ entry.result.verdict_label }}</span>
+      {% elif entry.status == 'failed' %}
+      <span class="tag err">已失败（隔离）</span>
+      {% else %}
+      <span class="tag warn">待执行</span>
+      {% endif %}
+      <span class="tag">执行 {{ entry.exec_count }} 次</span>
+    </div>
+  </div>
+
+  {% if entry.status == 'failed' %}
+  <div class="panel-body tight">
+    <div class="alert alert-error" role="alert" style="margin:0">
+      任务失败已隔离，不影响批次内其他任务；该任务的结果不参与整批结论的对账统计，但批次不能通过。<br>
+      失败原因：{{ entry.error }}
+    </div>
+  </div>
+  {% elif entry.status == 'pending' %}
+  <div class="empty" style="padding:14px">任务尚未执行（验收被中断），续跑后才会产生对账结果。</div>
+  {% else %}
+
+  {% if entry.result.join_checks %}
+  <div class="panel-body tight"><h3 style="margin:0">关联键对账（{{ entry.result.join_checks|length }} 条关联）</h3></div>
+  <div class="table-wrap">
+    <table class="dense">
+      <thead>
+        <tr><th style="width:250px">关联</th><th style="width:230px">旧口径（类型 / 可关联）</th><th style="width:300px">新口径（解析结果）</th><th style="width:130px">新口径可关联</th></tr>
+      </thead>
+      <tbody>
+        {% for j in entry.result.join_checks %}
+        <tr>
+          <td class="small"><code>{{ j.left }}.{{ j.left_key }}</code> = <code>{{ j.right }}.{{ j.right_key }}</code></td>
+          <td class="small">{{ j.old.left_type }} = {{ j.old.right_type }}<div class="hint">{{ j.old.joinable_label }}</div></td>
+          <td class="small">
+            {% for side in (j.new.left, j.new.right) %}
+            <div>
+              <code>{{ side.table }}.{{ side.old_name }}</code> →
+              {% if side.status == 'removed' %}<span class="tag err">已删除</span>
+              {% elif side.status == 'renamed' %}<code>{{ side.new_name }}</code> <span class="tag warn">改名</span>
+                {% if side.reoccupied %}<span class="tag err">旧名被新列占用</span>{% endif %}
+              {% elif side.status == 'id_changed' %}<span class="tag warn">ID 变更</span>
+              {% else %}<code>{{ side.new_name }}</code>{% endif %}
+              <span class="hint">{{ side.old_type }} → {{ side.new_type or '—' }}</span>
+            </div>
+            {% endfor %}
+          </td>
+          <td>
+            {% if j.new.joinable == 'matched' %}<span class="tag ok">{{ j.new.joinable_label }}</span>
+            {% elif j.new.joinable == 'matched_with_cast' %}<span class="tag warn">{{ j.new.joinable_label }}</span>
+            {% else %}<span class="tag err">{{ j.new.joinable_label }}</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if entry.result.projection_checks %}
+  <div class="panel-body tight"><h3 style="margin:0">投影对账（{{ entry.result.projection_checks|length }} 个输出列）</h3></div>
+  <div class="table-wrap">
+    <table class="dense">
+      <thead>
+        <tr><th style="width:250px">输出列</th><th style="width:130px">旧类型</th><th style="width:300px">新口径解析</th><th>类型结论</th></tr>
+      </thead>
+      <tbody>
+        {% for p in entry.result.projection_checks %}
+        <tr>
+          <td class="small"><code>{{ p.table }}.{{ p.column }}</code></td>
+          <td class="small">{{ p.old_type }}</td>
+          <td class="small">
+            {% set r = p.resolution %}
+            {% if r.status == 'removed' %}<span class="tag err">已删除</span>
+            {% elif r.status == 'renamed' %}<code>{{ r.new_name }}</code> <span class="tag warn">改名</span>
+              {% if r.reoccupied %}<span class="tag err">旧名被新列占用</span>{% endif %}
+            {% elif r.status == 'id_changed' %}<span class="tag warn">ID 变更</span>
+            {% else %}<code>{{ r.new_name }}</code> <span class="tag ok">正常</span>{% endif %}
+            <span class="hint">{{ r.old_type }} → {{ r.new_type or '—' }}</span>
+          </td>
+          <td class="small">
+            {% if r.type_verdict == 'compatible' %}<span class="tag ok">兼容</span>
+            {% elif r.type_verdict == 'blocked' %}<span class="tag err">阻断</span>
+            {% elif r.type_verdict == 'unknown' %}<span class="tag warn">未知</span>
+            {% else %}<span class="muted">—</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if entry.result.diffs %}
+  <div class="panel-body tight"><h3 style="margin:0">差异逐项（{{ entry.result.diffs|length }} 项）</h3></div>
+  <div class="table-wrap">
+    <table class="dense">
+      <thead>
+        <tr><th style="width:80px">级别</th><th style="width:80px">类别</th><th style="width:190px">规则代码</th><th style="width:260px">定位</th><th>说明</th></tr>
+      </thead>
+      <tbody>
+        {% for d in entry.result.diffs %}
+        <tr>
+          <td>
+            {% if d.severity == 'block' %}<span class="tag err">{{ d.severity_label }}</span>
+            {% elif d.severity == 'confirm' %}<span class="tag warn">{{ d.severity_label }}</span>
+            {% elif d.severity == 'warn' %}<span class="tag warn">{{ d.severity_label }}</span>
+            {% else %}<span class="tag">{{ d.severity_label }}</span>{% endif %}
+          </td>
+          <td class="small">{{ d.item_label }}</td>
+          <td><code>{{ d.code }}</code></td>
+          <td class="small"><code>{{ d.location }}</code></td>
+          <td class="small">{{ d.message }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty" style="padding:14px">该任务新旧口径完全一致，无差异。</div>
+  {% endif %}
+  {% endif %}
+</section>
+{% endfor %}
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>复核记录（执行日志）</h2>
+    <div class="panel-actions">
+      <span class="tag">与下载清单同一 acceptance_id</span>
+      <a class="btn secondary small" href="/api/acceptances/{{ acc.acceptance_id }}">记录 JSON</a>
+      <a class="btn secondary small" href="/api/acceptances/{{ acc.acceptance_id }}/manifest">下载清单</a>
+    </div>
+  </div>
+  <div class="table-wrap" style="max-height:260px">
+    <table class="dense">
+      <thead><tr><th style="width:200px">时间</th><th style="width:130px">事件</th><th style="width:180px">任务</th><th>说明</th></tr></thead>
+      <tbody>
+        {% for log in acc.run_log %}
+        <tr>
+          <td class="small nowrap">{{ log.at }}</td>
+          <td><code>{{ log.event }}</code></td>
+          <td class="small">{{ log.task or '—' }}</td>
+          <td class="small">{{ log.note }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="panel-actions">
+    {% if summary.pending %}
+    <button type="button" class="small" data-acc-action="resume" data-acc-id="{{ acc.acceptance_id }}">续跑未完成任务</button>
+    {% endif %}
+    <button type="button" class="secondary small" data-acc-action="retry" data-acc-id="{{ acc.acceptance_id }}">重试（同一输入新建验收，不混用本次结果）</button>
+    <a class="btn secondary small" href="/review">复核与导出</a>
+    <span class="small muted" style="align-self:center">重试产生新 acceptance_id；两次验收结果互不混用</span>
+  </div>
+</section>
+{% endblock %}
